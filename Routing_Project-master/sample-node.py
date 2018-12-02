@@ -105,7 +105,8 @@ class Node(object):
 
 		#NOTE my variables
 		#initialize link-state advertisement
-		self.advertisement = {'nid': self.nid, 'neighbors': self.links, 'snumber':0}
+		self.connections = []
+		self.routing_table = {}
 
 	# get nid
 	def GetNID (self):
@@ -188,6 +189,10 @@ class Node(object):
 	def Set_address_data_table (self, nid, hostname, port):
 		self.address_data_table[nid] = nid, hostname, port
 
+	def Get_Connections (self):
+		self.connections = Update_Connections()
+		return self.connections
+
 # class TCP Handler (this receives all TCP messages)
 class MyTCPHandler(socketserver.BaseRequestHandler):
 
@@ -202,9 +207,22 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
 		self.data = self.request.recv(1024)
 		message = self.data
-		message = ''.join(message.decode().split())
-		print(message)
-		os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
+
+		#Use message with length 0 to check if node is actively connected
+		#Use 0 at front of message to signify traditional message
+		#Use 1 at front of message to signify router table message
+		if len(message) > 0:
+			message = ''.join(message.decode().split())
+			identifier = message[0]
+			message = message[1:]
+			if identifier == "0":
+				print(message)
+				os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
+			else:
+				print("Initial Character not 0: " + str(message))
+		else:
+			print("Len = 0: " + str(message))
+
 
 # Class: MyUDPHandler (this receives all UDP messages)
 class MyUDPHandler(socketserver.BaseRequestHandler):
@@ -217,7 +235,7 @@ class MyUDPHandler(socketserver.BaseRequestHandler):
 
 		# set message and split
 		message = data
-		message = ''.join(message.decode().split())
+		message = ''.join(message[1:].decode().split())
 		print(message)
 		os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
 
@@ -251,7 +269,7 @@ def send_tcp(dest_nid, message):
 		print('no address information for destination')
 
 	# encode message as byte stream
-	message = message.encode()
+	message = ("0" + message).encode()
 
 	# send message
 	try:
@@ -389,40 +407,44 @@ def PrintInfo():
 	os.system('clear')
 	print("NID: " + str(NID))
 	print("Link Table: " + str(node.Get_link_table()))
-	print("Links: " + str(node.GetLinks))
+
+	print("Links: ")
+	for link in node.Get_Connections():
+		print("	" + str(link))
+
 	print("Address Data: " + str(node.Get_address_data_table()))
 	os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
 
 #NOTE My functions
 #send advertisement
-'''def Check_Connected():
+def Update_Connections():
+
 	# global variables
-	global node, NID, hostname, udp_port, tcp_port
+	global NID, hostname, tcp_port
 	global l1_hostname, l2_hostname, l3_hostname, l4_hostname
-	global l1_udp_port, l2_udp_port, l3_udp_port, l4_udp_port
-	global l1_tcp_port, l2_tcp_port, l3_tcp_port, l4_tcp_port
+	global l1_tcp_port,l2_tcp_port, l3_tcp_port, l4_tcp_port
 	global l1_NID, l2_NID, l3_NID, l4_NID
 
-	neighbor_NID = [l1_NID, l2_NID, l3_NID, l4_NID]
-	neighbor_PORT = []
-	HOST =
+	ports = (l1_tcp_port,l2_tcp_port, l3_tcp_port, l4_tcp_port)
+	connections = []
 
-	for nid in neighbor_NID:
+	for index, link in enumerate(node.GetLinks()):
+		# send message
+		HOST = link[1]
+		PORT = ports[index]
 		try:
 			sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 			sock.connect((HOST, PORT))
-			#sock.sendall(message)
 			sock.close()
+			#print("Has Connection To: " + str(link))
+			connections.append(link[0])
 
 		except:
-			print('error, message not sent')
+			#print("No Connection To: " + str(link))
 			pass
 
-def Send_state_advertisement():
-	global node
-
-	if node.GetUpFlagL1:
-		send_tcp(l1_NID, node.advertisement)'''
+	#print(connections)
+	return connections
 
 # main function
 def main(argv):
@@ -443,6 +465,8 @@ def main(argv):
 
 	# start UDP listener
 	start_listener()
+
+	Update_Connections()
 
 	# loop
 	while(run):
@@ -481,6 +505,16 @@ def main(argv):
 		elif(selection == 'quit'):
 			run = 0
 			os.system('clear')
+
+		elif(selection == 'connections'):
+			os.system('clear')
+			Update_Connections()
+			os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
+
+		elif(selection == 'send_ad'):
+			os.system('clear')
+			Send_state_advertisement()
+			os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
 
 		else:
 
