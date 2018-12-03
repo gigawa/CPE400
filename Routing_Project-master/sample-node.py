@@ -267,6 +267,22 @@ def send_tcp(dest_nid, message):
 		PORT = l4_tcp_port
 
 	else:
+	    #   Gary:
+	    #       I'm thinking here's what we can do:
+	    #       instead of grabbing the links of each linked node from the original node,
+	    #       we can just send the message onwards to the linked nodes, but append it with
+	    #       a specific format in front of the message like this:
+	    #           message = 'x1' + 'x2' + "F" + rest of message
+	    #               where x1 is the original node ID
+	    #                     x2 is the actual target node ID
+	    #                     F is just a symbolic tag to check for to notify a "forwarding"
+	    #                     of a message
+	    #       Idea is we can send the message out to linked nodes, then when they get it, we check for the 
+	    #       3rd element, and if it is specifically an 'F', then read the first two elements in as the original node ID
+	    #       and the target node ID. If in this new node there exists a link to x2's ID, then send the original message
+	    #       which exists from message[3:] (3rd element on), and send back a confirmation message to x1's original ID.
+	    #       If no link exists to x2, then send the message to all linked nodes again and repeat until
+	    #       the message is received?
 		print('no address information for destination')
 
     #   Grant:
