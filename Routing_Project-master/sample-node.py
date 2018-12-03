@@ -269,6 +269,8 @@ def send_tcp(dest_nid, message):
 	else:
 		print('no address information for destination')
 
+    #   Grant:
+    #       Changed from original to append '0' at the front of the message
 	# encode message as byte stream
 	message = ("0" + message).encode()
 
