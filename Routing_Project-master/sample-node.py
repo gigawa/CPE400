@@ -223,9 +223,21 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 			message = ''.join(message.decode().split())
 			identifier = message[0]
 			message = message[1:]
+
 			if identifier == "0":
-				print(message)
-				os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
+
+				#Check destination id, if id is current node print message, otherwise send to next node
+				print("Start separating message: " + str(message))
+				message_info = eval(message)
+				dest_nid = message_info[0]
+
+				if dest_nid == str(NID):
+					print(message_info[1])
+					os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
+				else:
+					send_tcp(dest_nid, message_info[1])
+
+			#table[0] is nid of sender, table[1] is node's routing_table
 			elif identifier == "1":
 				table = eval(message)
 				print("Initial Character not 0: " + str(table))
@@ -253,25 +265,28 @@ class MyUDPHandler(socketserver.BaseRequestHandler):
 def send_tcp(dest_nid, message):
 
 	# global variables
-	global NID, hostname, tcp_port
+	global node, NID, hostname, tcp_port
 	global l1_hostname, l2_hostname, l3_hostname, l4_hostname
 	global l1_tcp_port,l2_tcp_port, l3_tcp_port, l4_tcp_port
 	global l1_NID, l2_NID, l3_NID, l4_NID
 
+	#Use forwarding table to determine where message should go
+	destination = str(node.forwarding_table[int(dest_nid) - 1])
+
 	# look up address information for the destination node
-	if dest_nid == str(l1_NID):
+	if destination == str(l1_NID):
 		HOST = l1_hostname
 		PORT = l1_tcp_port
 
-	elif dest_nid == str(l2_NID):
+	elif destination == str(l2_NID):
 		HOST = l2_hostname
 		PORT = l2_tcp_port
 
-	elif dest_nid == str(l3_NID):
+	elif destination == str(l3_NID):
 		HOST = l3_hostname
 		PORT = l3_tcp_port
 
-	elif dest_nid == str(l4_NID):
+	elif destination == str(l4_NID):
 		HOST = l4_hostname
 		PORT = l4_tcp_port
 
@@ -296,8 +311,10 @@ def send_tcp(dest_nid, message):
 
     #   Grant:
     #       Changed from original to append '0' at the front of the message
+	#		Add destination to message as part of list with message
+	#		Easy to convert lists to strings and back
 	# encode message as byte stream
-	message = ("0" + message).encode()
+	message = ("0" + str([dest_nid, message])).encode()
 
 	# send message
 	try:
@@ -494,10 +511,14 @@ def Update_Table(source_nid, table):
 	global l1_tcp_port,l2_tcp_port, l3_tcp_port, l4_tcp_port
 	global l1_NID, l2_NID, l3_NID, l4_NID
 
+	#Used to compare new table to see if anything has changed
+	#if something has changed other nodes need to be notified
 	curr_table = node.routing_table.copy()
 
+	#if recieving message, that node must be neighbor, therefore hop count is 1
 	node.routing_table[source_nid - 1] = 1
 
+	#if the distance to a node is shorter than currently in routing table, table is changed
 	for index in range(0, len(table)):
 		dist = node.routing_table[source_nid - 1] + table[index]
 		if node.routing_table[index] > dist:
@@ -505,6 +526,7 @@ def Update_Table(source_nid, table):
 			node.routing_table[index] = dist
 			node.forwarding_table[index] = source_nid
 
+	#Notify connected nodes of any changes in routing table
 	if node.routing_table == curr_table:
 		print("No Changes")
 	else:
