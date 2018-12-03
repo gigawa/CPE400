@@ -208,9 +208,10 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 		self.data = self.request.recv(1024)
 		message = self.data
 
-		#Use message with length 0 to check if node is actively connected
-		#Use 0 at front of message to signify traditional message
-		#Use 1 at front of message to signify router table message
+        # Grant:
+		#    Use message with length 0 to check if node is actively connected
+		#    Use 0 at front of message to signify traditional message
+		#    Use 1 at front of message to signify router table message
 		if len(message) > 0:
 			message = ''.join(message.decode().split())
 			identifier = message[0]
