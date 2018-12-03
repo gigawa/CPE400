@@ -78,6 +78,9 @@ def InitializeTopology (nid, itc):
 				corresponding_port = ports[int(temp[index+i])-1]
 				node.AddLink((int(temp[index+i]), corresponding_hostname, corresponding_port))
 
+	node.routing_table = [16] * len(list)
+	node.routing_table[node.GetNID() - 1] = 0
+
 	# close itc.txt file
 	infile.close()
 
@@ -103,10 +106,11 @@ class Node(object):
 		self.link_table = {}
 		self.address_data_table = {}
 
-		#NOTE my variables
-		#initialize link-state advertisement
+		# Grant
+		#	List of live Get_Connections
+		#	Store routing table
 		self.connections = []
-		self.routing_table = {}
+		self.routing_table = [[]]
 
 	# get nid
 	def GetNID (self):
@@ -189,6 +193,8 @@ class Node(object):
 	def Set_address_data_table (self, nid, hostname, port):
 		self.address_data_table[nid] = nid, hostname, port
 
+	# Grant
+	#	Gets live neighbors
 	def Get_Connections (self):
 		self.connections = Update_Connections()
 		return self.connections
@@ -219,7 +225,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 			if identifier == "0":
 				print(message)
 				os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
-			else:
+			elif identifier == "1":
 				print("Initial Character not 0: " + str(message))
 		else:
 			print("Len = 0: " + str(message))
@@ -277,7 +283,7 @@ def send_tcp(dest_nid, message):
 	    #                     x2 is the actual target node ID
 	    #                     F is just a symbolic tag to check for to notify a "forwarding"
 	    #                     of a message
-	    #       Idea is we can send the message out to linked nodes, then when they get it, we check for the 
+	    #       Idea is we can send the message out to linked nodes, then when they get it, we check for the
 	    #       3rd element, and if it is specifically an 'F', then read the first two elements in as the original node ID
 	    #       and the target node ID. If in this new node there exists a link to x2's ID, then send the original message
 	    #       which exists from message[3:] (3rd element on), and send back a confirmation message to x1's original ID.
@@ -427,11 +433,14 @@ def PrintInfo():
 	print("NID: " + str(NID))
 	print("Link Table: " + str(node.Get_link_table()))
 
+	print("Address Data: " + str(node.Get_address_data_table()))
+
+	print("Routing Table: " + str(node.routing_table))
+
 	print("Links: ")
 	for link in node.Get_Connections():
 		print("	" + str(link))
 
-	print("Address Data: " + str(node.Get_address_data_table()))
 	os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
 
 #NOTE My functions
@@ -451,19 +460,27 @@ def Update_Connections():
 		# send message
 		HOST = link[1]
 		PORT = ports[index]
+		message = ("1" + str(node.routing_table)).encode()
+
 		try:
 			sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 			sock.connect((HOST, PORT))
+			sock.sendall(message)
 			sock.close()
-			#print("Has Connection To: " + str(link))
 			connections.append(link[0])
 
+			#if node is connected, cost is 1
+			node.routing_table[link[0] - 1] = 1
+
 		except:
-			#print("No Connection To: " + str(link))
+
+			#if node is not connected, cost is infinity
+			#dv has a max cost of 16
+			node.routing_table[link[0] - 1] = 16
 			pass
 
-	#print(connections)
 	return connections
+
 
 # main function
 def main(argv):
