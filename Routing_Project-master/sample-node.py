@@ -438,16 +438,16 @@ def PrintInfo():
 
 	print("Address Data: " + str(node.Get_address_data_table()))
 
-	print("Routing Table: " + str(node.routing_table))
-
 	print("Links: ")
 	for link in node.Get_Connections():
 		print("	" + str(link))
 
+	print("Routing Table: " + str(node.routing_table))
+	print("Forwarding Table: " + str(node.forwarding_table))
+
 	os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
 
 #NOTE My functions
-#send advertisement
 def Update_Connections():
 
 	# global variables
@@ -466,23 +466,24 @@ def Update_Connections():
 		table_info = [NID, node.routing_table]
 		message = ("1" + str(table_info)).encode()
 
-		try:
-			sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-			sock.connect((HOST, PORT))
-			sock.sendall(message)
-			sock.close()
-			connections.append(link[0])
+		if link[0] != 0:
+			try:
+				sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+				sock.connect((HOST, PORT))
+				sock.sendall(message)
+				sock.close()
+				connections.append(link[0])
 
-			#if node is connected, cost is 1
-			node.routing_table[link[0] - 1] = 1
-			node.forwarding_table[link[0] - 1] = link[0]
+				#if node is connected, cost is 1
+				node.routing_table[link[0] - 1] = 1
+				node.forwarding_table[link[0] - 1] = link[0]
 
-		except:
+			except:
 
-			#if node is not connected, cost is infinity
-			#dv has a max cost of 16
-			node.routing_table[link[0] - 1] = 16
-			pass
+				#if node is not connected, cost is infinity
+				#dv has a max cost of 16
+				node.routing_table[link[0] - 1] = 16
+				pass
 
 	return connections
 
@@ -493,12 +494,22 @@ def Update_Table(source_nid, table):
 	global l1_tcp_port,l2_tcp_port, l3_tcp_port, l4_tcp_port
 	global l1_NID, l2_NID, l3_NID, l4_NID
 
-	for index in range(len(table)):
+	curr_table = node.routing_table.copy()
+
+	node.routing_table[source_nid - 1] = 1
+
+	for index in range(0, len(table)):
 		dist = node.routing_table[source_nid - 1] + table[index]
 		if node.routing_table[index] > dist:
 			print("Shorter route: " + str(dist))
 			node.routing_table[index] = dist
 			node.forwarding_table[index] = source_nid
+
+	if node.routing_table == curr_table:
+		print("No Changes")
+	else:
+		print("Has Changed")
+		node.Get_Connections()
 
 	print("Routing Table: " + str(node.routing_table))
 	print("Forwarding Table: " + str(node.forwarding_table))
@@ -523,7 +534,7 @@ def main(argv):
 	# start UDP listener
 	start_listener()
 
-	Update_Connections()
+	#Update_Connections()
 
 	# loop
 	while(run):
