@@ -80,6 +80,7 @@ def InitializeTopology (nid, itc):
 
 	node.routing_table = [16] * len(list)
 	node.routing_table[node.GetNID() - 1] = 0
+	node.forwarding_table = [0] * len(list)
 
 	# close itc.txt file
 	infile.close()
@@ -226,7 +227,9 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 				print(message)
 				os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
 			elif identifier == "1":
-				print("Initial Character not 0: " + str(message))
+				table = eval(message)
+				print("Initial Character not 0: " + str(table))
+				Update_Table(table[0], table[1])
 		else:
 			print("Len = 0: " + str(message))
 
@@ -460,7 +463,8 @@ def Update_Connections():
 		# send message
 		HOST = link[1]
 		PORT = ports[index]
-		message = ("1" + str(node.routing_table)).encode()
+		table_info = [NID, node.routing_table]
+		message = ("1" + str(table_info)).encode()
 
 		try:
 			sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -471,6 +475,7 @@ def Update_Connections():
 
 			#if node is connected, cost is 1
 			node.routing_table[link[0] - 1] = 1
+			node.forwarding_table[link[0] - 1] = link[0]
 
 		except:
 
@@ -481,6 +486,22 @@ def Update_Connections():
 
 	return connections
 
+def Update_Table(source_nid, table):
+	# global variables
+	global NID, hostname, tcp_port
+	global l1_hostname, l2_hostname, l3_hostname, l4_hostname
+	global l1_tcp_port,l2_tcp_port, l3_tcp_port, l4_tcp_port
+	global l1_NID, l2_NID, l3_NID, l4_NID
+
+	for index in range(len(table)):
+		dist = node.routing_table[source_nid - 1] + table[index]
+		if node.routing_table[index] > dist:
+			print("Shorter route: " + str(dist))
+			node.routing_table[index] = dist
+			node.forwarding_table[index] = source_nid
+
+	print("Routing Table: " + str(node.routing_table))
+	print("Forwarding Table: " + str(node.forwarding_table))
 
 # main function
 def main(argv):
