@@ -511,11 +511,15 @@ def Update_Table(source_nid, table):
 
 	#if the distance to a node is shorter than currently in routing table, table is changed
 	for index in range(0, len(table)):
-		dist = node.routing_table[source_nid - 1] + table[index]
-		if node.routing_table[index] > dist:
-			print("Shorter route: " + str(dist))
-			node.routing_table[index] = dist
-			node.forwarding_table[index] = source_nid
+		if table[index] == 16 and node.forwarding_table[index] == source_nid:
+			node.forwarding_table[index] = 0
+			node.routing_table[index] = 16
+		else:
+			dist = node.routing_table[source_nid - 1] + table[index]
+			if node.routing_table[index] > dist:
+				print("Shorter route: " + str(dist))
+				node.routing_table[index] = dist
+				node.forwarding_table[index] = source_nid
 
 	#Notify connected nodes of any changes in routing table
 	if node.routing_table == curr_table:
@@ -545,9 +549,11 @@ def UpdateTimer():
 		#modulator - increases by 5 per update upto moduloLimit, is the value used to check if enough time has passed
 	global moduloLimit
 	global modulator
+	global node
 
 	moduloLimit = 30.0
 	modulator = 5.0
+	startTime = 0
 
 
 	while(run):
@@ -557,17 +563,20 @@ def UpdateTimer():
 		#		where enough time has passed (modulator # of seconds) then update connections, and
 		#		lock this if statement so that updates only happen once per trigger.
 		#		Increment modulator by 5 if it is less than 30, up to 30.
-		if math.ceil(time.clock()) % modulator < 0.1 and updateStopper:
-			Update_Connections()
-			updateStopper = False
+		#if math.ceil(time.clock()) % modulator < 0.1 and updateStopper:
+		if (time.clock() - startTime) > modulator:
+			print("Time Difference: " + str(time.clock() - startTime))
+			node.Get_Connections()
+			#updateStopper = False
+			startTime = time.clock()
 			if modulator < moduloLimit:
 				modulator = modulator + 5.0
 
 		#		If time has changed outside of the 0.1 range of values, unlock the top if statement
 		#		and allow further execution & value modification
-		if math.ceil(time.clock()) % modulator > 0.1:
-			#print("Unlock updater")
-			updateStopper = True
+		#if math.ceil(time.clock()) % modulator > 0.1:
+		#	print("Unlock updater")
+		#	updateStopper = True
 
 
 # main function
