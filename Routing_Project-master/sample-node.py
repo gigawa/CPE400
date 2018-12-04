@@ -484,6 +484,7 @@ def Update_Connections():
 				#if node is not connected, cost is infinity
 				#dv has a max cost of 16
 				node.routing_table[link[0] - 1] = 16
+				node.forwarding_table[link[0] - 1] = 0
 				pass
 
 	return connections
@@ -583,11 +584,6 @@ def main(argv):
 		elif(selection == 'connections'):
 			os.system('clear')
 			Update_Connections()
-			os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
-
-		elif(selection == 'send_ad'):
-			os.system('clear')
-			Send_state_advertisement()
 			os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
 
 		else:
