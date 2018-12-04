@@ -3,10 +3,12 @@ import socket
 import sys
 import threading
 from threading import Thread
+from multiprocessing import Process
 import socketserver
 import os
 import time
 import random
+import math
 from random import randint
 
 # set global variables
@@ -486,6 +488,10 @@ def Update_Connections():
 				node.routing_table[link[0] - 1] = 16
 				pass
 
+	#	Gary debug logger for update connections on timer
+	#		Commented out so that no text displays whenever connections are updated
+	print("Updated connections!")
+
 	return connections
 
 def Update_Table(source_nid, table):
@@ -520,6 +526,49 @@ def Update_Table(source_nid, table):
 	print("Routing Table: " + str(node.routing_table))
 	print("Forwarding Table: " + str(node.forwarding_table))
 
+#	Gary - parallel process to be ran after main initializes the node values
+#		Is called in main using p1.start() where p1 is this function
+def UpdateTimer():
+
+	global currentTime
+	currentTime = 0
+	print("Updating connections every 5 seconds, increasing by 5 seconds every time connections are updated up to 30 seconds.")
+
+		#infinite looper
+	run = 1
+
+		#allows only one update to go through every 5 seconds
+	updateStopper = True
+
+		#moduloLimit - dictates how high the cooldown can go up to for timing updates
+		#modulator - increases by 5 per update upto moduloLimit, is the value used to check if enough time has passed
+	global moduloLimit
+	global modulator
+
+	moduloLimit = 30.0
+	modulator = 5.0
+
+
+	while(run):
+
+		#	Gary -
+		#		If current time (stored and updated dynamically within time.clock()) is at a point 
+		#		where enough time has passed (modulator # of seconds) then update connections, and
+		#		lock this if statement so that updates only happen once per trigger. 
+		#		Increment modulator by 5 if it is less than 30, up to 30. 
+		if math.ceil(time.clock()) % modulator < 0.1 and updateStopper:
+			Update_Connections()
+			updateStopper = False
+			if modulator < moduloLimit:
+				modulator = modulator + 5.0
+		
+		#		If time has changed outside of the 0.1 range of values, unlock the top if statement
+		#		and allow further execution & value modification
+		if math.ceil(time.clock()) % modulator > 0.1:
+			#print("Unlock updater")
+			updateStopper = True
+
+
 # main function
 def main(argv):
 
@@ -540,7 +589,11 @@ def main(argv):
 	# start UDP listener
 	start_listener()
 
-	#Update_Connections()
+	#	Gary - 
+	#		Start timer for updating the connections here, ending when the user/terminal receives
+	#		the 'quit' argument.
+	p1 = Process(target=UpdateTimer)
+	p1.start()
 
 	# loop
 	while(run):
@@ -577,18 +630,26 @@ def main(argv):
 
 		# selection: quit
 		elif(selection == 'quit'):
+			#	Gary -
+			#	pt.terminate() is used to stop the other process that main is running which
+			#	manages the timer for our updating
+			p1.terminate()
 			run = 0
 			os.system('clear')
 
-		elif(selection == 'connections'):
-			os.system('clear')
-			Update_Connections()
-			os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
+		#	Gary
+		#		Commenting out for timer implementation
+		#elif(selection == 'connections'):
+		#	os.system('clear')
+		#	Update_Connections()
+		#	os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
 
-		elif(selection == 'send_ad'):
-			os.system('clear')
-			Send_state_advertisement()
-			os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
+		#	Gary
+		#		Commented out because we don't need it for now.
+		#elif(selection == 'send_ad'):
+		#	os.system('clear')
+		#	Send_state_advertisement()
+		#	os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
 
 		else:
 
