@@ -80,6 +80,9 @@ def InitializeTopology (nid, itc):
 				corresponding_port = ports[int(temp[index+i])-1]
 				node.AddLink((int(temp[index+i]), corresponding_hostname, corresponding_port))
 
+	# initialize routing table and forwarding table
+	# routing table has default value of 16 - infinite hops
+	# forwarding table has default value of 0
 	node.routing_table = [16] * len(list)
 	node.routing_table[node.GetNID() - 1] = 0
 	node.forwarding_table = [0] * len(list)
@@ -279,47 +282,51 @@ def send_tcp(dest_nid, message):
 	global l1_tcp_port,l2_tcp_port, l3_tcp_port, l4_tcp_port
 	global l1_NID, l2_NID, l3_NID, l4_NID
 
-	#Use forwarding table to determine where message should go
-	destination = str(node.forwarding_table[int(dest_nid) - 1])
-	#print(destination)
+	# Max hop count is 15 so need to check if distance is less to send
+	if node.routing_table[int(dest_nid) - 1] < 16 and dest_nid != NID:
 
-	# look up address information for the destination node
-	if destination == str(l1_NID):
-		HOST = l1_hostname
-		PORT = l1_tcp_port
+		# Use forwarding table to determine where message should go
+		destination = str(node.forwarding_table[int(dest_nid) - 1])
 
-	elif destination == str(l2_NID):
-		HOST = l2_hostname
-		PORT = l2_tcp_port
+		# look up address information for the destination node
+		if destination == str(l1_NID):
+			HOST = l1_hostname
+			PORT = l1_tcp_port
 
-	elif destination == str(l3_NID):
-		HOST = l3_hostname
-		PORT = l3_tcp_port
+		elif destination == str(l2_NID):
+			HOST = l2_hostname
+			PORT = l2_tcp_port
 
-	elif destination == str(l4_NID):
-		HOST = l4_hostname
-		PORT = l4_tcp_port
+		elif destination == str(l3_NID):
+			HOST = l3_hostname
+			PORT = l3_tcp_port
+
+		elif destination == str(l4_NID):
+			HOST = l4_hostname
+			PORT = l4_tcp_port
+
+		#   Grant:
+	    #       Changed from original to append '0' at the front of the message
+		#		Add destination to message as part of list with message
+		#		Easy to convert lists to strings and back
+		# encode message as byte stream
+		message = ("0" + str([dest_nid, message])).encode()
+
+		# send message
+		try:
+			sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			sock.connect((HOST, PORT))
+			sock.sendall(message)
+			sock.close()
+
+		except:
+			print('error, message not sent')
+			pass
 
 	else:
 		print('no address information for destination')
-
-    #   Grant:
-    #       Changed from original to append '0' at the front of the message
-	#		Add destination to message as part of list with message
-	#		Easy to convert lists to strings and back
-	# encode message as byte stream
-	message = ("0" + str([dest_nid, message])).encode()
-
-	# send message
-	try:
-		sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		sock.connect((HOST, PORT))
-		sock.sendall(message)
-		sock.close()
-
-	except:
 		print('error, message not sent')
-		pass
+
 
 # function: hello (alive)
 def send_udp(dest_nid, message):
@@ -330,37 +337,41 @@ def send_udp(dest_nid, message):
 	global l1_tcp_port,l2_tcp_port, l3_tcp_port, l4_tcp_port
 	global l1_NID, l2_NID, l3_NID, l4_NID
 
-	destination = str(node.forwarding_table[int(dest_nid) - 1])
+	# Max hop count is 15 so need to check if distance is less to send
+	if node.routing_table[int(dest_nid) - 1] < 16 and dest_nid != NID:
 
-	if destination == str(l1_NID):
-		HOST = l1_hostname
-		PORT = l1_udp_port
+		destination = str(node.forwarding_table[int(dest_nid) - 1])
 
-	elif destination == str(l2_NID):
-		HOST = l2_hostname
-		PORT = l2_udp_port
+		if destination == str(l1_NID):
+			HOST = l1_hostname
+			PORT = l1_udp_port
 
-	elif destination == str(l3_NID):
-		HOST = l3_hostname
-		PORT = l3_udp_port
+		elif destination == str(l2_NID):
+			HOST = l2_hostname
+			PORT = l2_udp_port
 
-	elif destination == str(l4_NID):
-		HOST = l4_hostname
-		PORT = l4_udp_port
+		elif destination == str(l3_NID):
+			HOST = l3_hostname
+			PORT = l3_udp_port
+
+		elif destination == str(l4_NID):
+			HOST = l4_hostname
+			PORT = l4_udp_port
+
+		# encode message as byte stream
+		message = (str([dest_nid, message])).encode()
+
+		try:
+			# open socket and send to neighbor 4
+			sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
+			sock.sendto(message, (HOST, PORT))
+		except:
+			print('error, message not sent')
+			pass
 
 	else:
 		print('no address information for destination')
-
-	# encode message as byte stream
-	message = (str([dest_nid, message])).encode()
-
-	try:
-		# open socket and send to neighbor 4
-		sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
-		sock.sendto(message, (HOST, PORT))
-	except:
 		print('error, message not sent')
-		pass
 
 # function: start listener
 def start_listener():
@@ -452,7 +463,7 @@ def PrintInfo():
 	print("Address Data: " + str(node.Get_address_data_table()))
 
 	print("Links: ")
-	for link in node.Get_Connections():
+	for link in node.connections:
 		print("	" + str(link))
 
 	print("Routing Table: " + str(node.routing_table))
@@ -498,10 +509,13 @@ def Update_Connections():
 				#if node is not connected, cost is infinity
 				#dv has a max cost of 16
 				if node.routing_table[link[0] - 1] != 16:
+					node.routing_table[link[0] - 1] = 16
+					node.forwarding_table[link[0] - 1] = 0
 					node.Get_Connections()
 				else:
 					node.routing_table[link[0] - 1] = 16
 					node.forwarding_table[link[0] - 1] = 0
+
 				pass
 
 	#	Gary debug logger for update connections on timer
@@ -519,15 +533,15 @@ def Update_Table(source_nid, table):
 
 	updateNeeded = False
 
-	#Used to compare new table to see if anything has changed
-	#if something has changed other nodes need to be notified
+	# Used to compare new table to see if anything has changed
+	# if something has changed other nodes need to be notified
 	curr_table = node.routing_table.copy()
 
-	#if recieving message, that node must be neighbor, therefore hop count is 1
+	# if recieving message, that node must be neighbor, therefore hop count is 1
 	node.routing_table[source_nid - 1] = 1
 
-	#if the distance to a node is shorter than currently in routing table, table is changed
-	#TODO
+	# if the distance to a node is shorter than currently in routing table, table is changed
+	# TODO
 	#	Check if node already in connections
 	#	if in connections and value 16, unreachable
 	#	need to notify neighbors
@@ -544,7 +558,7 @@ def Update_Table(source_nid, table):
 				node.routing_table[index] = dist
 				node.forwarding_table[index] = source_nid
 
-	#Notify connected nodes of any changes in routing table
+	# Notify connected nodes of any changes in routing table
 	if node.routing_table != curr_table and not updateNeeded:
 		node.Get_Connections()
 		#print("Has Changed")
@@ -562,14 +576,14 @@ def UpdateTimer():
 	currentTime = 0
 	print("Updating connections every 5 seconds, increasing by 5 seconds every time connections are updated up to 30 seconds.")
 
-		#infinite looper
+		# infinite looper
 	run = 1
 
-		#allows only one update to go through every 5 seconds
+		# allows only one update to go through every 5 seconds
 	updateStopper = True
 
-		#moduloLimit - dictates how high the cooldown can go up to for timing updates
-		#modulator - increases by 5 per update upto moduloLimit, is the value used to check if enough time has passed
+		# moduloLimit - dictates how high the cooldown can go up to for timing updates
+		# modulator - increases by 5 per update upto moduloLimit, is the value used to check if enough time has passed
 	global moduloLimit
 	global modulator
 	global node
@@ -596,7 +610,7 @@ def UpdateTimer():
 		#		the desired update time, then update node connections
 		#		increase desired update time until limit of 30
 		if (time.clock() - startTime) > updateTime:
-			#print("Time Difference: " + str(time.clock() - startTime))
+			print("Time Difference: " + str(time.clock() - startTime))
 			node.Get_Connections()
 			startTime = time.clock()
 			if updateTime < timeLimit:
@@ -673,11 +687,11 @@ def main(argv):
 			#	Gary -
 			#	pt.terminate() is used to stop the other process that main is running which
 			#	manages the timer for our updating
-			for index in range(0, len(node.routing_table)):
+			'''for index in range(0, len(node.routing_table)):
 				node.routing_table[index] = 16
 				node.forwarding_table[index] = 0
 
-			node.Get_Connections()
+			node.Get_Connections()'''
 			p1.terminate()
 			run = 0
 			os.system('clear')
