@@ -223,7 +223,6 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 		message = self.data
 
         # Grant:
-		#    Use message with length 0 to check if node is actively connected
 		#    Use 0 at front of message to signify traditional message
 		#    Use 1 at front of message to signify router table message
 		if len(message) > 0:
@@ -531,6 +530,8 @@ def Update_Connections():
 
 	return connections
 
+# Send message to neighbors saying not available
+# Set distance to 16 for self in routing table
 def Quit_Message():
 	# global variables
 	global NID, hostname, tcp_port
@@ -589,21 +590,41 @@ def Update_Table(source_nid, table):
 	curr_table = node.routing_table.copy()
 
 	# if recieving message, that node must be neighbor, therefore hop count is 1
-	node.routing_table[source_nid - 1] = 1
+	node.routing_table[int(source_nid) - 1] = 1
 
-	# if the distance to a node is shorter than currently in routing table, table is changed
-	# TODO
-	#	Check if node already in connections
-	#	if in connections and value 16, unreachable
-	#	need to notify neighbors
+
+	# if message says distance to source node is 16 it is unreachable
+	# result of quit message
+	# need to remove node from known routes
+	if table[int(source_nid) - 1] == 16:
+		#print("\nTable is 16 at: " + str(source_nid))
+		#print(str(source_nid) + " " + str(table))
+		node.routing_table[source_nid - 1] = 16
+		node.forwarding_table[source_nid - 1] = 0
+		Remove_Forward(source_nid)
+
+	# if table at this node's id is 16, means other node needs more info
+	# send node update
+	elif table[int(NID) - 1] == 16:
+		#print("\nTable at " + str(NID-1) + " is 16")
+		updateNeeded = True
+
+	# iterate through given table
 	for index in range(0, len(table)):
+
 		if table[index] == 16:
+
+			# Checks if route to node is through node that sent message and distance is 16
+			# Node that sent message no longer has route to that node
+			# need to update tables to remove route
 			if node.forwarding_table[index] == source_nid:
 				node.forwarding_table[index] = 0
 				node.routing_table[index] = 16
 				Remove_Forward(index + 1)
 
 		else:
+			# Checks distance to node through messaging node
+			# if distance is shorter update table
 			dist = node.routing_table[source_nid - 1] + table[index]
 			if node.routing_table[index] > dist and dist < 16:
 				node.routing_table[index] = dist
