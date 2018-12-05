@@ -116,7 +116,9 @@ class Node(object):
 		#	List of live Get_Connections
 		#	Store routing table
 		self.connections = []
-		self.routing_table = [[]]
+		self.possible_connections = []
+		self.routing_table = []
+
 
 	# get nid
 	def GetNID (self):
@@ -321,6 +323,7 @@ def send_tcp(dest_nid, message):
 
 		except:
 			print('error, message not sent')
+			node.Get_Connections()
 			pass
 
 	else:
@@ -367,6 +370,7 @@ def send_udp(dest_nid, message):
 			sock.sendto(message, (HOST, PORT))
 		except:
 			print('error, message not sent')
+			node.Get_Connections()
 			pass
 
 	else:
@@ -453,7 +457,7 @@ def UDP_listener():
 def PrintInfo():
 
 	# global variables
-	global node, NID, hostname, udp_port, tcp_port
+	global node, NID, hostname, udp_port, tcp_port, node_time
 
 	# output data
 	os.system('clear')
@@ -511,7 +515,7 @@ def Update_Connections():
 				if node.routing_table[link[0] - 1] != 16:
 					node.routing_table[link[0] - 1] = 16
 					node.forwarding_table[link[0] - 1] = 0
-					node.Get_Connections()
+					Remove_Forward(link[0])
 				else:
 					node.routing_table[link[0] - 1] = 16
 					node.forwarding_table[link[0] - 1] = 0
@@ -524,8 +528,22 @@ def Update_Connections():
 
 	return connections
 
+# If a node becomes unreachable look through forwarding table
+# if it is used to reach other nodes, make those nodes unreachable
+def Remove_Forward(source_nid):
+	global node
+
+	for index in range(0, len(node.forwarding_table)):
+		if node.forwarding_table[index] == source_nid:
+			node.forwarding_table[index] = 0
+			node.routing_table[index] = 16
+
+	node.Get_Connections()
+
+# update routing and forwarding tables based on info recieved from other nodes
 def Update_Table(source_nid, table):
 	# global variables
+	global node
 	global NID, hostname, tcp_port
 	global l1_hostname, l2_hostname, l3_hostname, l4_hostname
 	global l1_tcp_port,l2_tcp_port, l3_tcp_port, l4_tcp_port
@@ -546,63 +564,43 @@ def Update_Table(source_nid, table):
 	#	if in connections and value 16, unreachable
 	#	need to notify neighbors
 	for index in range(0, len(table)):
-		if table[index] == 16 and node.forwarding_table[index] == source_nid:
-			node.forwarding_table[index] = 0
-			node.routing_table[index] = 16
-			#updateNeeded = True
+		if table[index] == 16:
+			if node.forwarding_table[index] == source_nid:
+				node.forwarding_table[index] = 0
+				node.routing_table[index] = 16
+				Remove_Forward(index + 1)
 
 		else:
 			dist = node.routing_table[source_nid - 1] + table[index]
 			if node.routing_table[index] > dist and dist < 16:
-				#print("Shorter route: " + str(dist))
 				node.routing_table[index] = dist
 				node.forwarding_table[index] = source_nid
 
 	# Notify connected nodes of any changes in routing table
-	if node.routing_table != curr_table and not updateNeeded:
+	if node.routing_table != curr_table or updateNeeded:
+		if updateNeeded:
+			print("Update Needed")
 		node.Get_Connections()
-		#print("Has Changed")
-	#else:
-		#print("No Changes")
-
-	#print("Routing Table: " + str(node.routing_table))
-	#print("Forwarding Table: " + str(node.forwarding_table))
 
 #	Gary - parallel process to be ran after main initializes the node values
 #		Is called in main using p1.start() where p1 is this function
 def UpdateTimer():
 
-	global currentTime
-	currentTime = 0
-	print("Updating connections every 5 seconds, increasing by 5 seconds every time connections are updated up to 30 seconds.")
+	#global node_time
 
-		# infinite looper
+	# infinite looper
 	run = 1
 
-		# allows only one update to go through every 5 seconds
-	updateStopper = True
-
-		# moduloLimit - dictates how high the cooldown can go up to for timing updates
-		# modulator - increases by 5 per update upto moduloLimit, is the value used to check if enough time has passed
-	global moduloLimit
-	global modulator
-	global node
-
-	moduloLimit = 30.0
-	modulator = 5.0
 	startTime = 0
 	updateTime = 0
 	timeLimit = 30
 
+	lastUpdateTimeLimit = 15
+
 
 	while(run):
 
-		#	Gary -
-		#		If current time (stored and updated dynamically within time.clock()) is at a point
-		#		where enough time has passed (modulator # of seconds) then update connections, and
-		#		lock this if statement so that updates only happen once per trigger.
-		#		Increment modulator by 5 if it is less than 30, up to 30.
-		#if math.ceil(time.clock()) % modulator < 0.1 and updateStopper:
+		#time = time.clock()
 
 		#	Grant -
 		#		Compare the current time using time.clock() with a starting time
@@ -615,12 +613,6 @@ def UpdateTimer():
 			startTime = time.clock()
 			if updateTime < timeLimit:
 				updateTime += 5.0
-
-		#		If time has changed outside of the 0.1 range of values, unlock the top if statement
-		#		and allow further execution & value modification
-		#if math.ceil(time.clock()) % modulator > 0.1:
-		#	print("Unlock updater")
-		#	updateStopper = True
 
 
 # main function
@@ -687,11 +679,6 @@ def main(argv):
 			#	Gary -
 			#	pt.terminate() is used to stop the other process that main is running which
 			#	manages the timer for our updating
-			'''for index in range(0, len(node.routing_table)):
-				node.routing_table[index] = 16
-				node.forwarding_table[index] = 0
-
-			node.Get_Connections()'''
 			p1.terminate()
 			run = 0
 			os.system('clear')
