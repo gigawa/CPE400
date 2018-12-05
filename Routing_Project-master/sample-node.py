@@ -213,7 +213,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 	def handle(self):
 
 		# global variables
-		global NID, hostname, tcp_port
+		global NID, hostname, tcp_port, node
 		global l1_hostname, l2_hostname, l3_hostname, l4_hostname
 		global l1_tcp_port,l2_tcp_port, l3_tcp_port, l4_tcp_port
 		global l1_NID, l2_NID, l3_NID, l4_NID
@@ -242,7 +242,8 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 					print(message_info[1])
 					os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
 				else:
-					print("Hop: " + str(message))
+					next_destination = node.forwarding_table[int(dest_nid) - 1]
+					print("Hop: " + "\n Final Destination: " + str(dest_nid) + "\n Next Destination: " + str(next_destination))
 					send_tcp(dest_nid, message_info[1])
 
 			#table[0] is nid of sender, table[1] is node's routing_table
@@ -254,6 +255,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
 # Class: MyUDPHandler (this receives all UDP messages)
 class MyUDPHandler(socketserver.BaseRequestHandler):
+	global node
 
 	# interrupt handler for incoming messages
 	def handle(self):
@@ -272,7 +274,8 @@ class MyUDPHandler(socketserver.BaseRequestHandler):
 			print(message_info[1])
 			os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
 		else:
-			print("Hop: " + str(message))
+			next_destination = node.forwarding_table[int(dest_nid) - 1]
+			print("Hop: " + "\n Final Destination: " + str(dest_nid) + "\n Next Destination: " + str(next_destination))
 			send_udp(dest_nid, message_info[1])
 
 # Function: sendto()
@@ -608,7 +611,6 @@ def UpdateTimer():
 		#		the desired update time, then update node connections
 		#		increase desired update time until limit of 30
 		if (time.clock() - startTime) > updateTime:
-			print("Time Difference: " + str(time.clock() - startTime))
 			node.Get_Connections()
 			startTime = time.clock()
 			if updateTime < timeLimit:
