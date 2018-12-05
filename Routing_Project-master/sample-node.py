@@ -229,23 +229,22 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 			if identifier == "0":
 
 				#Check destination id, if id is current node print message, otherwise send to next node
-				print("Start separating message: " + str(message))
+				#print("Start separating message: " + str(message))
 				message_info = eval(message)
 				dest_nid = message_info[0]
 
 				if dest_nid == str(NID):
-					print(message_info[1])
+					#print(message_info[1])
 					os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
 				else:
+					print("Hop: " + str(message))
 					send_tcp(dest_nid, message_info[1])
 
 			#table[0] is nid of sender, table[1] is node's routing_table
 			elif identifier == "1":
 				table = eval(message)
-				print("Initial Character not 0: " + str(table))
+				#print("Initial Character not 0: " + str(table))
 				Update_Table(table[0], table[1])
-		else:
-			print("Len = 0: " + str(message))
 
 
 # Class: MyUDPHandler (this receives all UDP messages)
@@ -274,6 +273,7 @@ def send_tcp(dest_nid, message):
 
 	#Use forwarding table to determine where message should go
 	destination = str(node.forwarding_table[int(dest_nid) - 1])
+	print(destination)
 
 	# look up address information for the destination node
 	if destination == str(l1_NID):
@@ -473,25 +473,30 @@ def Update_Connections():
 			try:
 				sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 				sock.connect((HOST, PORT))
-				sock.sendall(message)
-				sock.close()
-				connections.append(link[0])
 
 				#if node is connected, cost is 1
 				node.routing_table[link[0] - 1] = 1
 				node.forwarding_table[link[0] - 1] = link[0]
+				message = ("1" + str(table_info)).encode()
+
+				sock.sendall(message)
+				sock.close()
+				connections.append(link[0])
 
 			except:
 
 				#if node is not connected, cost is infinity
 				#dv has a max cost of 16
-				node.routing_table[link[0] - 1] = 16
-				node.forwarding_table[link[0] - 1] = 0
+				if node.routing_table[link[0] - 1] != 16:
+					node.Get_Connections()
+				else:
+					node.routing_table[link[0] - 1] = 16
+					node.forwarding_table[link[0] - 1] = 0
 				pass
 
 	#	Gary debug logger for update connections on timer
 	#		Commented out so that no text displays whenever connections are updated
-	print("Updated connections!")
+	#print("Updated connections!")
 
 	return connections
 
@@ -502,6 +507,8 @@ def Update_Table(source_nid, table):
 	global l1_tcp_port,l2_tcp_port, l3_tcp_port, l4_tcp_port
 	global l1_NID, l2_NID, l3_NID, l4_NID
 
+	updateNeeded = False
+
 	#Used to compare new table to see if anything has changed
 	#if something has changed other nodes need to be notified
 	curr_table = node.routing_table.copy()
@@ -510,23 +517,29 @@ def Update_Table(source_nid, table):
 	node.routing_table[source_nid - 1] = 1
 
 	#if the distance to a node is shorter than currently in routing table, table is changed
+	#TODO
+	#	Check if node already in connections
+	#	if in connections and value 16, unreachable
+	#	need to notify neighbors
 	for index in range(0, len(table)):
 		if table[index] == 16 and node.forwarding_table[index] == source_nid:
 			node.forwarding_table[index] = 0
 			node.routing_table[index] = 16
+			#updateNeeded = True
+
 		else:
 			dist = node.routing_table[source_nid - 1] + table[index]
-			if node.routing_table[index] > dist:
-				print("Shorter route: " + str(dist))
+			if node.routing_table[index] > dist and dist < 16:
+				#print("Shorter route: " + str(dist))
 				node.routing_table[index] = dist
 				node.forwarding_table[index] = source_nid
 
 	#Notify connected nodes of any changes in routing table
-	if node.routing_table == curr_table:
-		print("No Changes")
-	else:
-		print("Has Changed")
+	if node.routing_table != curr_table and not updateNeeded:
 		node.Get_Connections()
+		#print("Has Changed")
+	#else:
+		#print("No Changes")
 
 	print("Routing Table: " + str(node.routing_table))
 	print("Forwarding Table: " + str(node.forwarding_table))
@@ -554,6 +567,8 @@ def UpdateTimer():
 	moduloLimit = 30.0
 	modulator = 5.0
 	startTime = 0
+	updateTime = 0
+	timeLimit = 30
 
 
 	while(run):
@@ -564,13 +579,18 @@ def UpdateTimer():
 		#		lock this if statement so that updates only happen once per trigger.
 		#		Increment modulator by 5 if it is less than 30, up to 30.
 		#if math.ceil(time.clock()) % modulator < 0.1 and updateStopper:
-		if (time.clock() - startTime) > modulator:
-			print("Time Difference: " + str(time.clock() - startTime))
+
+		#	Grant -
+		#		Compare the current time using time.clock() with a starting time
+		#		If the difference between the current time and start time is greater than
+		#		the desired update time, then update node connections
+		#		increase desired update time until limit of 30
+		if (time.clock() - startTime) > updateTime:
+			#print("Time Difference: " + str(time.clock() - startTime))
 			node.Get_Connections()
-			#updateStopper = False
 			startTime = time.clock()
-			if modulator < moduloLimit:
-				modulator = modulator + 5.0
+			if updateTime < timeLimit:
+				updateTime += 5.0
 
 		#		If time has changed outside of the 0.1 range of values, unlock the top if statement
 		#		and allow further execution & value modification
@@ -643,16 +663,14 @@ def main(argv):
 			#	Gary -
 			#	pt.terminate() is used to stop the other process that main is running which
 			#	manages the timer for our updating
+			for index in range(0, len(node.routing_table)):
+				node.routing_table[index] = 16
+				node.forwarding_table[index] = 0
+
+			node.Get_Connections()
 			p1.terminate()
 			run = 0
 			os.system('clear')
-
-		#	Gary
-		#		Commenting out for timer implementation
-		#elif(selection == 'connections'):
-		#	os.system('clear')
-		#	Update_Connections()
-		#	os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
 
 
 		else:
