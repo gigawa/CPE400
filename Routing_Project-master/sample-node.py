@@ -243,7 +243,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 					os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
 				else:
 					next_destination = node.forwarding_table[int(dest_nid) - 1]
-					print("Hop: " + "\n Final Destination: " + str(dest_nid) + "\n Next Destination: " + str(next_destination))
+					print("\nHop: " + "\n Final Destination: " + str(dest_nid) + "\n Next Destination: " + str(next_destination))
 					send_tcp(dest_nid, message_info[1])
 
 			#table[0] is nid of sender, table[1] is node's routing_table
@@ -275,7 +275,7 @@ class MyUDPHandler(socketserver.BaseRequestHandler):
 			os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
 		else:
 			next_destination = node.forwarding_table[int(dest_nid) - 1]
-			print("Hop: " + "\n Final Destination: " + str(dest_nid) + "\n Next Destination: " + str(next_destination))
+			print("\nHop: " + "\n Final Destination: " + str(dest_nid) + "\n Next Destination: " + str(next_destination))
 			send_udp(dest_nid, message_info[1])
 
 # Function: sendto()
@@ -531,6 +531,36 @@ def Update_Connections():
 
 	return connections
 
+def Quit_Message():
+	# global variables
+	global NID, hostname, tcp_port
+	global l1_hostname, l2_hostname, l3_hostname, l4_hostname
+	global l1_tcp_port,l2_tcp_port, l3_tcp_port, l4_tcp_port
+	global l1_NID, l2_NID, l3_NID, l4_NID
+
+	ports = (l1_tcp_port,l2_tcp_port, l3_tcp_port, l4_tcp_port)
+
+	for index, link in enumerate(node.GetLinks()):
+		# send message
+		HOST = link[1]
+		PORT = ports[index]
+		node.routing_table[NID-1] = 16
+		table_info = [NID, node.routing_table]
+		message = ("1" + str(table_info)).encode()
+
+		if link[0] != 0:
+			try:
+				sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+				sock.connect((HOST, PORT))
+				message = ("1" + str(table_info)).encode()
+
+				sock.sendall(message)
+				sock.close()
+				connections.append(link[0])
+
+			except:
+				pass
+
 # If a node becomes unreachable look through forwarding table
 # if it is used to reach other nodes, make those nodes unreachable
 def Remove_Forward(source_nid):
@@ -602,8 +632,6 @@ def UpdateTimer():
 
 
 	while(run):
-
-		#time = time.clock()
 
 		#	Grant -
 		#		Compare the current time using time.clock() with a starting time
@@ -684,6 +712,7 @@ def main(argv):
 			p1.terminate()
 			run = 0
 			os.system('clear')
+			Quit_Message()
 
 
 		else:
