@@ -234,7 +234,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 				dest_nid = message_info[0]
 
 				if dest_nid == str(NID):
-					#print(message_info[1])
+					print(message_info[1])
 					os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
 				else:
 					print("Hop: " + str(message))
@@ -258,9 +258,17 @@ class MyUDPHandler(socketserver.BaseRequestHandler):
 
 		# set message and split
 		message = data
-		message = ''.join(message[1:].decode().split())
-		print(message)
-		os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
+		message = ''.join(message.decode().split())
+
+		message_info = eval(message)
+		dest_nid = message_info[0]
+
+		if dest_nid == str(NID):
+			print(message_info[1])
+			os.system("""bash -c 'read -s -n 1 -p "Press any key to continue..."'""")
+		else:
+			print("Hop: " + str(message))
+			send_udp(dest_nid, message_info[1])
 
 # Function: sendto()
 def send_tcp(dest_nid, message):
@@ -273,7 +281,7 @@ def send_tcp(dest_nid, message):
 
 	#Use forwarding table to determine where message should go
 	destination = str(node.forwarding_table[int(dest_nid) - 1])
-	print(destination)
+	#print(destination)
 
 	# look up address information for the destination node
 	if destination == str(l1_NID):
@@ -322,19 +330,21 @@ def send_udp(dest_nid, message):
 	global l1_tcp_port,l2_tcp_port, l3_tcp_port, l4_tcp_port
 	global l1_NID, l2_NID, l3_NID, l4_NID
 
-	if dest_nid == str(l1_NID):
+	destination = str(node.forwarding_table[int(dest_nid) - 1])
+
+	if destination == str(l1_NID):
 		HOST = l1_hostname
 		PORT = l1_udp_port
 
-	elif dest_nid == str(l2_NID):
+	elif destination == str(l2_NID):
 		HOST = l2_hostname
 		PORT = l2_udp_port
 
-	elif dest_nid == str(l3_NID):
+	elif destination == str(l3_NID):
 		HOST = l3_hostname
 		PORT = l3_udp_port
 
-	elif dest_nid == str(l4_NID):
+	elif destination == str(l4_NID):
 		HOST = l4_hostname
 		PORT = l4_udp_port
 
@@ -342,7 +352,7 @@ def send_udp(dest_nid, message):
 		print('no address information for destination')
 
 	# encode message as byte stream
-	message = message.encode()
+	message = (str([dest_nid, message])).encode()
 
 	try:
 		# open socket and send to neighbor 4
@@ -541,8 +551,8 @@ def Update_Table(source_nid, table):
 	#else:
 		#print("No Changes")
 
-	print("Routing Table: " + str(node.routing_table))
-	print("Forwarding Table: " + str(node.forwarding_table))
+	#print("Routing Table: " + str(node.routing_table))
+	#print("Forwarding Table: " + str(node.forwarding_table))
 
 #	Gary - parallel process to be ran after main initializes the node values
 #		Is called in main using p1.start() where p1 is this function
